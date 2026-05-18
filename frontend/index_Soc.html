@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOC Dashboard | Threat Intelligence</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0f0a; --bg2: #0d140d; --bg3: #111811;
+      --green: #00ff41; --green2: #00cc33; --green3: #004d15;
+      --cyan: #00ffcc; --red: #ff3333; --amber: #ffaa00;
+      --text: #00ff41; --text2: #00aa2b; --text3: #005515;
+      --border: #004d15; --font: 'Share Tech Mono', 'Courier New', monospace;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; min-height: 100vh; }
+    .header { text-align: center; padding: 20px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .header h1 { font-size: 28px; letter-spacing: 8px; color: var(--green); text-shadow: 0 0 20px rgba(0,255,65,.5); }
+    .header .sub { font-size: 11px; color: var(--text2); margin-top: 6px; letter-spacing: 2px; }
+    .header .sub span { color: var(--cyan); }
+    .container { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .card { background: var(--bg2); border: 1px solid var(--green3); border-radius: 2px; padding: 14px 16px; position: relative; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--green3); }
+    .card-label { font-size: 10px; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; margin-bottom: 10px; }
+    .card-val { font-size: 18px; color: var(--green); text-shadow: 0 0 8px rgba(0,255,65,.4); word-break: break-all; }
+    .card-val.cyan  { color: var(--cyan);  text-shadow: 0 0 8px rgba(0,255,204,.4); }
+    .card-val.amber { color: var(--amber); text-shadow: 0 0 8px rgba(255,170,0,.4); }
+    .card-val.red   { color: var(--red);   text-shadow: 0 0 8px rgba(255,51,51,.4); }
+    .card-val.small { font-size: 13px; }
+    .panel { background: var(--bg2); border: 1px solid var(--green3); border-radius: 2px; overflow: hidden; }
+    .panel-header { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--green3); background: var(--bg3); font-size: 11px; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; }
+    .panel-body { padding: 12px 14px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; animation: blink 1.5s infinite; }
+    .dot-g { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-r { background: var(--red);   box-shadow: 0 0 6px var(--red); animation-duration: .8s; }
+    .dot-a { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 10px; letter-spacing: 1.5px; color: var(--text2); padding: 6px 8px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 7px 8px; border-bottom: 1px solid rgba(0,77,21,.4); font-size: 12px; }
+    tr:last-child td { border-bottom: none; }
+    tr.new-row { animation: slideIn .35s ease; }
+    .td-ip { color: var(--cyan); } .td-port { color: var(--amber); } .td-country { color: var(--text2); } .td-ai { color: var(--green2); font-size:11px; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 2px; font-size: 10px; letter-spacing: .5px; }
+    .b-ssh  { color: var(--amber); border: 1px solid rgba(255,170,0,.4); }
+    .b-http { color: var(--green); border: 1px solid rgba(0,255,65,.4); }
+    .b-rdp  { color: var(--red);   border: 1px solid rgba(255,51,51,.4); }
+    .b-syn  { color: var(--cyan);  border: 1px solid rgba(0,255,204,.4); }
+    .b-trig { color: var(--amber); border: 1px solid rgba(255,170,0,.4); }
+    .b-act  { color: var(--green); border: 1px solid rgba(0,255,65,.4); }
+    .b-high { color: var(--red);   border: 1px solid rgba(255,51,51,.4); }
+    .b-med  { color: var(--amber); border: 1px solid rgba(255,170,0,.4); }
+    .b-low  { color: var(--green); border: 1px solid rgba(0,255,65,.4); }
+    .flow-row { display: grid; grid-template-columns: repeat(4,1fr); }
+    .flow-step { padding: 12px 14px; border-right: 1px solid var(--border); position: relative; }
+    .flow-step:last-child { border-right: none; }
+    .flow-step.active { background: rgba(0,255,65,.04); }
+    .flow-step.active .fs-num { color: var(--green); }
+    .fs-num   { font-size: 22px; color: var(--text3); font-weight: 700; margin-bottom: 6px; }
+    .fs-title { font-size: 10px; letter-spacing: 1px; color: var(--text2); margin-bottom: 4px; }
+    .fs-sub   { font-size: 11px; color: var(--green); }
+    .fs-sub.waiting { color: var(--text3); }
+    .flow-arrow { position: absolute; right: -8px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 12px; z-index: 1; }
+    .log-list { display: flex; flex-direction: column; gap: 0; }
+    .log-item { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid rgba(0,77,21,.4); animation: slideIn .3s ease; font-size: 12px; }
+    .log-item:last-child { border-bottom: none; }
+    .log-time { color: var(--text3); min-width: 56px; flex-shrink: 0; padding-top: 1px; }
+    .log-tag  { min-width: 72px; flex-shrink: 0; }
+    .log-text { color: var(--text); flex: 1; line-height: 1.5; }
+    .tag-scan  { color: var(--cyan); }  .tag-ai { color: var(--green); }
+    .tag-dec   { color: var(--amber); } .tag-intel { color: var(--green2); }
+    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .pf-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(0,77,21,.4); font-size: 12px; }
+    .pf-key { color: var(--text2); } .pf-val { color: var(--green); }
+    .pf-val.cyan { color: var(--cyan); } .pf-val.amber { color: var(--amber); } .pf-val.red { color: var(--red); }
+    .intel-box { margin-top: 12px; padding: 10px 12px; background: rgba(0,255,65,.03); border: 1px solid var(--green3); border-radius: 2px; font-size: 11px; line-height: 1.7; }
+    .intel-label { color: var(--text3); font-size: 10px; letter-spacing: 1px; margin-bottom: 6px; }
+    .intel-text  { color: var(--green2); }
+    .raw-box { background: var(--bg3); border: 1px solid var(--border); padding: 10px 12px; font-size: 10px; color: var(--text2); line-height: 1.8; max-height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+    .raw-box::-webkit-scrollbar { width: 3px; } .raw-box::-webkit-scrollbar-thumb { background: var(--green3); }
+    .waiting-msg { color: var(--text3); font-size: 12px; padding: 10px 0; }
+    .statusbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 14px; background: var(--bg3); border-top: 1px solid var(--border); font-size: 10px; color: var(--text3); letter-spacing: 1px; }
+    .live { color: var(--green); }
+    @keyframes blink   { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SOC DASHBOARD</h1>
+  <div class="sub">System Integrity: <span id="sysStatus">WAITING</span> &nbsp;|&nbsp; Last Update: <span id="clock">--:--:--</span></div>
+</div>
+
+<div class="container">
+
+  <div class="cards-row">
+    <div class="card"><div class="card-label">IP Atacante</div><div class="card-val cyan small" id="c-ip">—</div></div>
+    <div class="card"><div class="card-label">Risk Score</div><div class="card-val red" id="c-risk">—</div></div>
+    <div class="card"><div class="card-label">Clasificación IA</div><div class="card-val amber small" id="c-label">—</div></div>
+    <div class="card"><div class="card-label">Honeypot activo</div><div class="card-val small" id="c-hp">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="dot dot-g"></span>Flujo de comunicación</div>
+    <div class="flow-row">
+      <div class="flow-step" id="fs0">
+        <div class="fs-num">01</div><div class="fs-title">ATTACKER SCANS</div>
+        <div class="fs-sub waiting" id="fs0s">esperando...</div><div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step" id="fs1">
+        <div class="fs-num">02</div><div class="fs-title">AI CLASSIFIES</div>
+        <div class="fs-sub waiting" id="fs1s">esperando...</div><div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step" id="fs2">
+        <div class="fs-num">03</div><div class="fs-title">DECEPTION ACTIVATED</div>
+        <div class="fs-sub waiting" id="fs2s">esperando...</div><div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step" id="fs3">
+        <div class="fs-num">04</div><div class="fs-title">THREAT INTEL GENERATED</div>
+        <div class="fs-sub waiting" id="fs3s">esperando...</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">
+    <div class="panel">
+      <div class="panel-header"><span class="dot dot-r"></span>Scans detectados</div>
+      <div class="panel-body" style="padding:0">
+        <table id="scanTable">
+          <thead><tr><th>IP Remota</th><th>Puerto</th><th>Tipo</th><th>País</th><th>Clasificación IA</th><th>Risk</th></tr></thead>
+          <tbody id="scanBody"><tr><td colspan="6" class="waiting-msg" style="padding:10px 8px">Esperando datos de Make...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="dot dot-a"></span>Deception layer</div>
+      <div class="panel-body" style="padding:0">
+        <table>
+          <thead><tr><th>Honeypot</th><th>Hits</th><th>Estado</th></tr></thead>
+          <tbody id="hpBody"><tr><td colspan="3" class="waiting-msg" style="padding:10px 8px">Sin datos...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="dot dot-g"></span>Security events — timeline</div>
+    <div class="panel-body">
+      <div class="log-list" id="logList">
+        <div class="log-item">
+          <span class="log-time">--:--:--</span>
+          <span class="log-tag tag-intel">[SYSTEM]</span>
+          <span class="log-text" style="color:var(--text3)">Esperando eventos de Make...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="dot dot-r"></span>Attacker profile — AI generated</div>
+    <div class="panel-body">
+      <div class="profile-grid">
+        <div>
+          <div class="pf-row"><span class="pf-key">IP primaria</span><span class="pf-val cyan" id="p-ip">—</span></div>
+          <div class="pf-row"><span class="pf-key">País / origen</span><span class="pf-val" id="p-country">—</span></div>
+          <div class="pf-row"><span class="pf-key">Puerto</span><span class="pf-val" id="p-port">—</span></div>
+          <div class="pf-row"><span class="pf-key">Tipo de ataque</span><span class="pf-val amber" id="p-type">—</span></div>
+          <div class="pf-row"><span class="pf-key">Clasificación IA</span><span class="pf-val" id="p-label">—</span></div>
+          <div class="pf-row"><span class="pf-key">Confianza IA</span><span class="pf-val" id="p-conf">—</span></div>
+          <div class="pf-row"><span class="pf-key">Táctica MITRE</span><span class="pf-val amber" id="p-tactic">—</span></div>
+          <div class="pf-row"><span class="pf-key">Honeypot</span><span class="pf-val amber" id="p-hp">—</span></div>
+          <div class="pf-row"><span class="pf-key">Risk score</span><span class="pf-val red" id="p-risk">—</span></div>
+          <div class="pf-row"><span class="pf-key">Perfil detectado</span><span class="pf-val red" id="p-name">—</span></div>
+        </div>
+        <div>
+          <div class="intel-box">
+            <div class="intel-label">&gt; THREAT INTEL DEL AGENTE IA</div>
+            <div class="intel-text" id="p-intel">Sin intel recibida.</div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="intel-label" style="color:var(--text3);font-size:10px;letter-spacing:1px;margin-bottom:6px">&gt; JSON RAW RECIBIDO DE MAKE</div>
+            <div class="raw-box" id="rawBox">Esperando payload...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="statusbar">
+  <div><span class="dot dot-g" style="display:inline-block;vertical-align:middle;margin-right:6px"></span><span id="pollStatus">Polling /api/latest cada 3s</span></div>
+  <div id="lastEvent">Último evento: nunca</div>
+</div>
+
+<script>
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('es-MX', {hour12:false});
+}
+setInterval(updateClock, 1000); updateClock();
+
+function ts() { return new Date().toLocaleTimeString('es-MX', {hour12:false}); }
+function el(id) { return document.getElementById(id); }
+
+function typeBadge(type) {
+  const t = (type||'').toLowerCase();
+  if (t.includes('ssh'))  return '<span class="badge b-ssh">SSH</span>';
+  if (t.includes('http')) return '<span class="badge b-http">HTTP</span>';
+  if (t.includes('rdp'))  return '<span class="badge b-rdp">RDP</span>';
+  return '<span class="badge b-syn">'+(type||'SYN').toUpperCase()+'</span>';
+}
+function riskBadge(score) {
+  if (!score) return '—';
+  const cls = score>=70?'b-high':score>=40?'b-med':'b-low';
+  const lbl = score>=70?'HIGH':score>=40?'MED':'LOW';
+  return `<span class="badge ${cls}">${score} ${lbl}</span>`;
+}
+function addLog(text, tagClass, tagLabel) {
+  const list = el('logList');
+  if (list.children.length===1 && list.children[0].querySelector('[style*="text3"]')) list.innerHTML='';
+  const div = document.createElement('div');
+  div.className = 'log-item';
+  div.innerHTML = `<span class="log-time">${ts()}</span><span class="log-tag ${tagClass}">[${tagLabel}]</span><span class="log-text">${text}</span>`;
+  list.insertBefore(div, list.firstChild);
+  if (list.children.length > 12) list.removeChild(list.lastChild);
+}
+
+let lastHash = '';
+function render(data) {
+  const hash = JSON.stringify(data);
+  if (hash === lastHash) return;
+  lastHash = hash;
+
+  el('sysStatus').textContent = 'OK'; el('sysStatus').style.color='var(--cyan)';
+  el('lastEvent').textContent = 'Último evento: ' + ts();
+  el('pollStatus').textContent = 'Conectado — recibiendo desde Make';
+  el('pollStatus').className = 'live';
+
+  el('c-ip').textContent    = data.ip             || '—';
+  el('c-risk').textContent  = data.risk_score      || '—';
+  el('c-label').textContent = data.ai?.label       || '—';
+  el('c-hp').textContent    = data.deception?.honeypot || '—';
+
+  const steps = [
+    {id:'fs0',sid:'fs0s',active:!!data.ip,sub:data.ip?`${data.ip}:${data.port||'?'} — ${data.country||'?'}`:'esperando...'},
+    {id:'fs1',sid:'fs1s',active:!!data.ai?.label,sub:data.ai?.label?`${data.ai.label} (${((data.ai.confidence||0)*100).toFixed(1)}%)`:'esperando...'},
+    {id:'fs2',sid:'fs2s',active:!!data.deception?.honeypot,sub:data.deception?.honeypot||'esperando...'},
+    {id:'fs3',sid:'fs3s',active:!!data.attacker_profile,sub:data.attacker_profile?'intel generada ✓':'esperando...'},
+  ];
+  steps.forEach(s=>{
+    el(s.id).className='flow-step'+(s.active?' active':'');
+    const sub=el(s.sid); sub.textContent=s.sub;
+    sub.className='fs-sub'+(s.active?'':' waiting');
+  });
+
+  if (data.ip) {
+    const tbody=el('scanBody');
+    if (tbody.querySelector('.waiting-msg')) tbody.innerHTML='';
+    const tr=document.createElement('tr'); tr.className='new-row';
+    tr.innerHTML=`<td class="td-ip">${data.ip}</td><td class="td-port">${data.port||'—'}</td><td>${typeBadge(data.type)}</td><td class="td-country">${data.country||'—'}</td><td class="td-ai">${data.ai?.label||'—'}</td><td>${riskBadge(data.risk_score)}</td>`;
+    tbody.insertBefore(tr,tbody.firstChild);
+    if (tbody.children.length>8) tbody.removeChild(tbody.lastChild);
+  }
+
+  if (data.honeypots && Array.isArray(data.honeypots)) {
+    el('hpBody').innerHTML=data.honeypots.map(hp=>`<tr><td>${hp.name}</td><td style="color:var(--cyan)">${hp.hits||0}</td><td><span class="badge ${hp.triggered?'b-trig':'b-act'}">${hp.triggered?'TRIGGERED':'ACTIVE'}</span></td></tr>`).join('');
+  } else if (data.deception?.honeypot) {
+    el('hpBody').innerHTML=`<tr><td>${data.deception.honeypot}</td><td style="color:var(--cyan)">—</td><td><span class="badge b-trig">TRIGGERED</span></td></tr>`;
+  }
+
+  if (data.attacker_profile?.threat_intel) addLog('Threat intel generada por agente IA','tag-intel','INTEL');
+  if (data.deception?.honeypot) addLog(`Honeypot ${data.deception.honeypot} activado`,'tag-dec','DECEPTION');
+  if (data.ai?.label) addLog(`IA: ${data.ai.label} — conf. ${((data.ai.confidence||0)*100).toFixed(1)}%`,'tag-ai','AI');
+  if (data.ip) addLog(`Scan desde ${data.ip}:${data.port||'?'} (${data.country||'?'}) tipo ${data.type||'?'}`,'tag-scan','SCAN');
+
+  const p=data.attacker_profile||{};
+  el('p-ip').textContent      = data.ip               ||'—';
+  el('p-country').textContent = data.country||p.origin ||'—';
+  el('p-port').textContent    = data.port              ||'—';
+  el('p-type').textContent    = data.type              ||'—';
+  el('p-label').textContent   = data.ai?.label         ||'—';
+  el('p-conf').textContent    = data.ai?.confidence?(data.ai.confidence*100).toFixed(1)+'%':'—';
+  el('p-tactic').textContent  = data.ai?.tactic        ||'—';
+  el('p-hp').textContent      = data.deception?.honeypot||'—';
+  el('p-risk').textContent    = data.risk_score        ||'—';
+  el('p-name').textContent    = p.name                 ||'—';
+  el('p-intel').textContent   = p.threat_intel||(data.ai?.label?`Actividad "${data.ai.label}" detectada.`:'Sin intel recibida.');
+  el('rawBox').textContent    = JSON.stringify(data,null,2);
+}
+
+const API_URL = '/api/latest';
+async function poll() {
+  try {
+    const r = await fetch(API_URL, {cache:'no-store'});
+    if (r.ok) { const d=await r.json(); render(d); }
+  } catch(e) {}
+  setTimeout(poll, 3000);
+}
+poll();
+</script>
+</body>
+</html>
